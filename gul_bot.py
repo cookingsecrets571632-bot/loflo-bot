@@ -177,34 +177,32 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if action == "approve":
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_0")]
-        ])
         try:
+            # Kanalga tugmasiz e'lon chiqarish
             sent = await context.bot.send_photo(
                 chat_id=CHANNEL_ID,
                 photo=ad["photo_id"],
                 caption=format_caption(ad),
-                parse_mode="Markdown",
-                reply_markup=keyboard
+                parse_mode="Markdown"
+                # tugma YO'Q — kanalda ko'rinmaydi
             )
             active_ads[sent.message_id] = {**ad, "sotildi": False}
 
-            # Sotildi tugmasi callback datani yangilash
-            keyboard2 = InlineKeyboardMarkup([
+            # Faqat sotuvchiga botda "Sotildi" tugmasi yuborish
+            sotildi_keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{sent.message_id}")]
             ])
-            await context.bot.edit_message_reply_markup(
-                chat_id=CHANNEL_ID,
-                message_id=sent.message_id,
-                reply_markup=keyboard2
-            )
-
             await context.bot.send_message(
                 chat_id=uid,
-                text="🎉 *To'lovingiz tasdiqlandi!*\n\nE'loningiz @LoFlo_Xorazm kanalga chiqarildi! 🌸",
-                parse_mode="Markdown"
+                text=(
+                    "🎉 *To'lovingiz tasdiqlandi!*\n\n"
+                    "E'loningiz @LoFlo_Xorazm kanalga chiqarildi! 🌸\n\n"
+                    "Gul sotilganda quyidagi tugmani bosing 👇"
+                ),
+                parse_mode="Markdown",
+                reply_markup=sotildi_keyboard
             )
+
             await query.edit_message_caption(
                 caption="✅ *Tasdiqlandi* — E'lon kanalga chiqarildi.",
                 parse_mode="Markdown"
@@ -248,17 +246,17 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ad = active_ads[msg_id]
     daqiqa = max(1, int((datetime.now() - ad["vaqt"]).total_seconds() // 60))
 
+    # Kanalda e'lonni "Sotildi" ga o'zgartirish
     await context.bot.edit_message_caption(
         chat_id=CHANNEL_ID,
         message_id=msg_id,
         caption=format_caption(ad, sotildi=True, daqiqa=daqiqa),
-        parse_mode="Markdown",
-        reply_markup=None
+        parse_mode="Markdown"
     )
     active_ads[msg_id]["sotildi"] = True
 
-    await context.bot.send_message(
-        chat_id=owner_id,
+    # Sotuvchiga tabrik
+    await query.edit_message_text(
         text=f"✅ *Tabriklaymiz!*\n\nGul *{daqiqa} daqiqada* sotildi! 🌸",
         parse_mode="Markdown"
     )
