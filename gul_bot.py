@@ -8,6 +8,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, filters, ContextTypes, ConversationHandler,
 )
+import re
 
 # =============================================
 BOT_TOKEN    = "8774639906:AAGlyNKjNLbm2teUEBpchYGfiQF0kqOexwM"
@@ -25,30 +26,42 @@ active_ads = {}
 pending_payments = {}
 
 
+def escape_md(text):
+    """Foydalanuvchi matnidagi Markdown belgilarini himoyalash"""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', str(text))
+
+
 def format_caption(data, sotildi=False, daqiqa=None):
+    narx = escape_md(data['narx'])
+    telefon = escape_md(data['telefon'])
+    joylashuv = escape_md(data['joylashuv'])
+
     base = (
-        "🌸 GUL SOTILADI!\n\n"
-        f"💰 Narx: {data['narx']}\n"
-        f"📞 Telefon: {data['telefon']}\n"
-        f"📍 Joylashuv: {data['joylashuv']}\n\n"
+        "🌸 *GUL SOTILADI\!*\n\n"
+        f"💰 *Narx:* {narx}\n"
+        f"📞 *Telefon:* {telefon}\n"
+        f"📍 *Joylashuv:* {joylashuv}\n\n"
     )
     if sotildi:
-        return base + f"✅ SOTILDI! ⏱ {daqiqa} daqiqada sotildi!"
-    return base + "📩 Sotib olish uchun telefon raqamga murojaat qiling!"
+        return base + f"✅ *SOTILDI\!* ⏱ {daqiqa} daqiqada sotildi\!"
+    return base + "📩 Sotib olish uchun telefon raqamga murojaat qiling\!"
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🌸 LoFlo ga Xush Kelibsiz!\n\n"
-        "Gullaringizni tez va oson soting yoki arzon narxda gul sotib oling!\n\n"
+        "🌸 *LoFlo ga Xush Kelibsiz\!*\n\n"
+        "Gullaringizni tez va oson soting yoki arzon narxda gul sotib oling\!\n\n"
         "📢 E'lon berish: /elon\n"
-        "📋 Aktiv e'lonlarim: /elonlarim"
+        "📋 Aktiv e'lonlarim: /elonlarim",
+        parse_mode="MarkdownV2"
     )
 
 
 async def elon_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📸 1-qadam: Gul rasmi\n\nGulning rasmini yuboring:",
+        "📸 *1\\-qadam: Gul rasmi*\n\nGulning rasmini yuboring:",
+        parse_mode="MarkdownV2",
         reply_markup=ReplyKeyboardRemove()
     )
     return RASM
@@ -58,7 +71,8 @@ async def rasm_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid] = {"photo_id": update.message.photo[-1].file_id}
     await update.message.reply_text(
-        "✅ Rasm qabul qilindi!\n\n💰 2-qadam: Narx\n\nNarxini kiriting (masalan: 50000 som):"
+        "✅ Rasm qabul qilindi\\!\n\n💰 *2\\-qadam: Narx*\n\nNarxini kiriting \\(masalan: 50000 so'm\\):",
+        parse_mode="MarkdownV2"
     )
     return NARX
 
@@ -67,7 +81,8 @@ async def narx_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["narx"] = update.message.text
     await update.message.reply_text(
-        "✅ Narx qabul qilindi!\n\n📞 3-qadam: Telefon\n\nTelefon raqamingizni kiriting:"
+        "✅ Narx qabul qilindi\\!\n\n📞 *3\\-qadam: Telefon*\n\nTelefon raqamingizni kiriting:",
+        parse_mode="MarkdownV2"
     )
     return TELEFON
 
@@ -76,7 +91,8 @@ async def telefon_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["telefon"] = update.message.text
     await update.message.reply_text(
-        "✅ Telefon qabul qilindi!\n\n📍 4-qadam: Joylashuv\n\nQayerda turasiz?"
+        "✅ Telefon qabul qilindi\\!\n\n📍 *4\\-qadam: Joylashuv*\n\nQayerda turasiz?",
+        parse_mode="MarkdownV2"
     )
     return JOYLASHUV
 
@@ -87,14 +103,16 @@ async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data_store[uid]["owner_id"] = uid
     user_data_store[uid]["vaqt"] = datetime.now()
 
+    karta = escape_md(KARTA_RAQAM)
     await update.message.reply_text(
-        f"✅ Malumotlar qabul qilindi!\n\n"
+        f"✅ Ma'lumotlar qabul qilindi\\!\n\n"
         f"━━━━━━━━━━━━━━━━━\n"
-        f"💳 TOLOV\n\n"
-        f"Elon narxi: 20 000 som\n"
-        f"Karta raqami:\n{KARTA_RAQAM}\n\n"
-        f"📌 Tolovni amalga oshirib, chek rasmini yuboring.\n"
-        f"━━━━━━━━━━━━━━━━━"
+        f"💳 *TO'LOV*\n\n"
+        f"E'lon narxi: *20 000 so'm*\n"
+        f"Karta raqami:\n`{karta}`\n\n"
+        f"📌 To'lovni amalga oshirib, *chek rasmini* yuboring\\.\n"
+        f"━━━━━━━━━━━━━━━━━",
+        parse_mode="MarkdownV2"
     )
     return CHEK
 
@@ -103,7 +121,10 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
 
     if not update.message.photo:
-        await update.message.reply_text("❗ Iltimos, chek rasmini yuboring.")
+        await update.message.reply_text(
+            "❗ Iltimos, chek rasmini yuboring\\.",
+            parse_mode="MarkdownV2"
+        )
         return CHEK
 
     chek_photo_id = update.message.photo[-1].file_id
@@ -125,7 +146,7 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=ADMIN_ID,
         photo=chek_photo_id,
         caption=(
-            f"💳 Yangi tolov cheki\n\n"
+            f"💳 Yangi to'lov cheki\n\n"
             f"👤 {username} ({uid})\n"
             f"💰 {ad_data.get('narx','—')}\n"
             f"📞 {ad_data.get('telefon','—')}\n"
@@ -136,8 +157,9 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(
-        "⏳ Chek adminga yuborildi!\n\n"
-        "5-15 daqiqa ichida tasdiqlanadi. 🌸",
+        "⏳ Chek adminga yuborildi\\!\n\n"
+        "5\\-15 daqiqa ichida tasdiqlanadi\\. 🌸",
+        parse_mode="MarkdownV2",
         reply_markup=ReplyKeyboardRemove()
     )
 
@@ -159,7 +181,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ad = pending_payments.get(uid)
 
     if not ad:
-        await query.edit_message_caption(caption="⚠️ Bu sorov allaqachon korib chiqilgan.")
+        await query.edit_message_caption(caption="⚠️ Bu so'rov allaqachon ko'rib chiqilgan.")
         return
 
     if action == "approve":
@@ -167,7 +189,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sent = await context.bot.send_photo(
                 chat_id=CHANNEL_ID,
                 photo=ad["photo_id"],
-                caption=format_caption(ad)
+                caption=format_caption(ad),
+                parse_mode="MarkdownV2"
             )
             active_ads[sent.message_id] = {**ad, "sotildi": False}
 
@@ -177,21 +200,23 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=uid,
                 text=(
-                    "🎉 Tolovingiz tasdiqlandi!\n\n"
-                    "Eloningiz @LoFlo_Xorazm kanalga chiqarildi! 🌸\n\n"
+                    "🎉 To'lovingiz tasdiqlandi\\!\n\n"
+                    "E'loningiz @LoFlo\\_Xorazm kanalga chiqarildi\\! 🌸\n\n"
                     "Gul sotilganda quyidagi tugmani bosing 👇"
                 ),
+                parse_mode="MarkdownV2",
                 reply_markup=sotildi_keyboard
             )
 
-            await query.edit_message_caption(caption="✅ Tasdiqlandi — Elon kanalga chiqarildi.")
+            await query.edit_message_caption(caption="✅ Tasdiqlandi — E'lon kanalga chiqarildi.")
         except Exception as e:
             logger.error(f"Xato: {e}")
 
     elif action == "reject":
         await context.bot.send_message(
             chat_id=uid,
-            text="❌ Tolovingiz tasdiqlanmadi.\n\nQayta /elon buyrug'ini yuboring."
+            text="❌ To'lovingiz tasdiqlanmadi\\.\n\nQayta /elon buyrug'ini yuboring\\.",
+            parse_mode="MarkdownV2"
         )
         await query.edit_message_caption(caption="❌ Rad etildi.")
 
@@ -207,11 +232,11 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_id = int(parts[2])
 
     if query.from_user.id != owner_id:
-        await query.answer("❌ Faqat elon egasi bosishi mumkin!", show_alert=True)
+        await query.answer("❌ Faqat e'lon egasi bosishi mumkin!", show_alert=True)
         return
 
     if msg_id not in active_ads or active_ads[msg_id]["sotildi"]:
-        await query.answer("Bu elon allaqachon sotilgan!", show_alert=True)
+        await query.answer("Bu e'lon allaqachon sotilgan!", show_alert=True)
         return
 
     ad = active_ads[msg_id]
@@ -220,12 +245,14 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.edit_message_caption(
         chat_id=CHANNEL_ID,
         message_id=msg_id,
-        caption=format_caption(ad, sotildi=True, daqiqa=daqiqa)
+        caption=format_caption(ad, sotildi=True, daqiqa=daqiqa),
+        parse_mode="MarkdownV2"
     )
     active_ads[msg_id]["sotildi"] = True
 
     await query.edit_message_text(
-        text=f"✅ Tabriklaymiz!\n\nGul {daqiqa} daqiqada sotildi! 🌸"
+        text=f"✅ Tabriklaymiz\\!\n\nGul *{daqiqa}* daqiqada sotildi\\! 🌸",
+        parse_mode="MarkdownV2"
     )
 
 
@@ -237,19 +264,22 @@ async def elonlarim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     if not my_ads:
-        await update.message.reply_text("📭 Sizda aktiv elonlar yoq.")
+        await update.message.reply_text("📭 Sizda aktiv e'lonlar yo'q.")
         return
 
     for mid, ad in my_ads.items():
         daqiqa = int((datetime.now() - ad["vaqt"]).total_seconds() // 60)
+        narx = escape_md(ad['narx'])
+        joy = escape_md(ad['joylashuv'])
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{mid}")]
         ])
         await update.message.reply_text(
-            f"🌸 Elon\n"
-            f"💰 {ad['narx']}\n"
-            f"📍 {ad['joylashuv']}\n"
+            f"🌸 *E'lon*\n"
+            f"💰 {narx}\n"
+            f"📍 {joy}\n"
             f"⏱ {daqiqa} daqiqa oldin",
+            parse_mode="MarkdownV2",
             reply_markup=keyboard
         )
 
