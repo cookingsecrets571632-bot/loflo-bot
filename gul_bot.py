@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from telegram import (
-    Update, ReplyKeyboardMarkup, ReplyKeyboardRemove,
+    Update, ReplyKeyboardRemove,
     InlineKeyboardButton, InlineKeyboardMarkup
 )
 from telegram.ext import (
@@ -9,8 +9,6 @@ from telegram.ext import (
     CallbackQueryHandler, filters, ContextTypes, ConversationHandler,
 )
 
-# =============================================
-# SOZLAMALAR
 # =============================================
 BOT_TOKEN    = "8774639906:AAGgFzCz7OIXFeMKSJKFLvI3OGTuE8RnMhE"
 CHANNEL_ID   = "@LoFlo_Xorazm"
@@ -22,7 +20,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 RASM, NARX, TELEFON, JOYLASHUV, CHEK = range(5)
-
 user_data_store = {}
 active_ads = {}
 pending_payments = {}
@@ -43,7 +40,7 @@ def format_caption(data, sotildi=False, daqiqa=None):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🌸 *LoFlo ga Xush Kelibsiz!*\n\n"
-        "Gullaringizni tez va oson soting!\n\n"
+        "Gullaringizni tez va oson soting yoki arzon narxda gul sotib oling!\n\n"
         "📢 E'lon berish: /elon\n"
         "📋 Aktiv e'lonlarim: /elonlarim",
         parse_mode="Markdown"
@@ -58,14 +55,16 @@ async def elon_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return RASM
 
+
 async def rasm_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid] = {"photo_id": update.message.photo[-1].file_id}
     await update.message.reply_text(
-        "✅ Rasm qabul qilindi!\n\n💰 *2-qadam: Narx*\n\nNarxini kiriting (masalan: 50000 so'm):",
+        "✅ Rasm qabul qilindi!\n\n💰 *2-qadam: Narx*\n\nNarxini kiriting:",
         parse_mode="Markdown"
     )
     return NARX
+
 
 async def narx_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
@@ -76,14 +75,16 @@ async def narx_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return TELEFON
 
+
 async def telefon_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["telefon"] = update.message.text
     await update.message.reply_text(
-        "✅ Telefon qabul qilindi!\n\n📍 *4-qadam: Joylashuv*\n\nQayerda turasiz? (tuman/shahar):",
+        "✅ Telefon qabul qilindi!\n\n📍 *4-qadam: Joylashuv*\n\nQayerda turasiz?",
         parse_mode="Markdown"
     )
     return JOYLASHUV
+
 
 async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
@@ -103,11 +104,15 @@ async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return CHEK
 
+
 async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
 
     if not update.message.photo:
-        await update.message.reply_text("❗ Iltimos, chek *rasmini* yuboring (screenshot).", parse_mode="Markdown")
+        await update.message.reply_text(
+            "❗ Iltimos, chek *rasmini* yuboring.",
+            parse_mode="Markdown"
+        )
         return CHEK
 
     chek_photo_id = update.message.photo[-1].file_id
@@ -118,7 +123,7 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{uid}"),
-            InlineKeyboardButton("❌ Rad etish",  callback_data=f"reject_{uid}"),
+            InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}"),
         ]
     ])
 
@@ -130,10 +135,10 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo=chek_photo_id,
         caption=(
             f"💳 *Yangi to'lov cheki*\n\n"
-            f"👤 Foydalanuvchi: {username} (`{uid}`)\n"
-            f"💰 Narx: {ad_data.get('narx','—')}\n"
-            f"📞 Telefon: {ad_data.get('telefon','—')}\n"
-            f"📍 Joylashuv: {ad_data.get('joylashuv','—')}\n\n"
+            f"👤 {username} (`{uid}`)\n"
+            f"💰 {ad_data.get('narx','—')}\n"
+            f"📞 {ad_data.get('telefon','—')}\n"
+            f"📍 {ad_data.get('joylashuv','—')}\n\n"
             f"Tasdiqlaysizmi?"
         ),
         parse_mode="Markdown",
@@ -142,15 +147,12 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "⏳ *Chek adminga yuborildi!*\n\n"
-        "Tasdiqlanishi bilan e'loningiz kanalga chiqariladi.\n"
-        "Odatda 5-15 daqiqa ichida tasdiqlanadi. 🌸",
+        "5-15 daqiqa ichida tasdiqlanadi. 🌸",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove()
     )
 
-    if uid in user_data_store:
-        del user_data_store[uid]
-
+    user_data_store.pop(uid, None)
     return ConversationHandler.END
 
 
@@ -162,17 +164,21 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("❌ Siz admin emassiz!", show_alert=True)
         return
 
-    action, uid_str = query.data.split("_", 1)
+    parts = query.data.split("_", 1)
+    action, uid_str = parts[0], parts[1]
     uid = int(uid_str)
     ad = pending_payments.get(uid)
 
     if not ad:
-        await query.edit_message_caption("⚠️ Bu so'rov allaqachon ko'rib chiqilgan.", parse_mode="Markdown")
+        await query.edit_message_caption(
+            caption="⚠️ Bu so'rov allaqachon ko'rib chiqilgan.",
+            parse_mode="Markdown"
+        )
         return
 
     if action == "approve":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}")]
+            [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_0")]
         ])
         try:
             sent = await context.bot.send_photo(
@@ -184,28 +190,43 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             active_ads[sent.message_id] = {**ad, "sotildi": False}
 
+            # Sotildi tugmasi callback datani yangilash
+            keyboard2 = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{sent.message_id}")]
+            ])
+            await context.bot.edit_message_reply_markup(
+                chat_id=CHANNEL_ID,
+                message_id=sent.message_id,
+                reply_markup=keyboard2
+            )
+
             await context.bot.send_message(
                 chat_id=uid,
                 text="🎉 *To'lovingiz tasdiqlandi!*\n\nE'loningiz @LoFlo_Xorazm kanalga chiqarildi! 🌸",
                 parse_mode="Markdown"
             )
-            await query.edit_message_caption("✅ *Tasdiqlandi* — E'lon kanalga chiqarildi.", parse_mode="Markdown")
+            await query.edit_message_caption(
+                caption="✅ *Tasdiqlandi* — E'lon kanalga chiqarildi.",
+                parse_mode="Markdown"
+            )
         except Exception as e:
-            logger.error(f"Kanal xatosi: {e}")
+            logger.error(f"Xato: {e}")
 
     elif action == "reject":
         await context.bot.send_message(
             chat_id=uid,
             text=(
                 "❌ *To'lovingiz tasdiqlanmadi.*\n\n"
-                "Sabab: Chek aniq ko'rinmadi yoki summa noto'g'ri.\n\n"
-                "Iltimos, *20 000 so'm* to'lab, qayta /elon buyrug'ini yuboring."
+                "Qayta /elon buyrug'ini yuboring."
             ),
             parse_mode="Markdown"
         )
-        await query.edit_message_caption("❌ *Rad etildi.*", parse_mode="Markdown")
+        await query.edit_message_caption(
+            caption="❌ *Rad etildi.*",
+            parse_mode="Markdown"
+        )
 
-    del pending_payments[uid]
+    pending_payments.pop(uid, None)
 
 
 async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -214,7 +235,7 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     parts = query.data.split("_")
     owner_id = int(parts[1])
-    msg_id = int(parts[2]) if len(parts) == 3 else query.message.message_id
+    msg_id = int(parts[2])
 
     if query.from_user.id != owner_id:
         await query.answer("❌ Faqat e'lon egasi bosishi mumkin!", show_alert=True)
@@ -261,9 +282,9 @@ async def elonlarim(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
         await update.message.reply_text(
             f"🌸 *E'lon*\n"
-            f"💰 Narx: {ad['narx']}\n"
-            f"📍 Joylashuv: {ad['joylashuv']}\n"
-            f"⏱ {daqiqa} daqiqa oldin chiqarilgan",
+            f"💰 {ad['narx']}\n"
+            f"📍 {ad['joylashuv']}\n"
+            f"⏱ {daqiqa} daqiqa oldin",
             parse_mode="Markdown",
             reply_markup=keyboard
         )
@@ -271,8 +292,7 @@ async def elonlarim(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def bekor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
-    if uid in user_data_store:
-        del user_data_store[uid]
+    user_data_store.pop(uid, None)
     await update.message.reply_text("❌ Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
@@ -296,11 +316,11 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("elonlarim", elonlarim))
     app.add_handler(conv)
-    app.add_handler(CallbackQueryHandler(admin_callback,   pattern=r"^(approve|reject)_"))
+    app.add_handler(CallbackQueryHandler(admin_callback, pattern=r"^(approve|reject)_"))
     app.add_handler(CallbackQueryHandler(sotildi_callback, pattern=r"^sotildi_"))
 
     print("✅ LoFlo bot ishga tushdi!")
-    app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
