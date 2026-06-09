@@ -10,7 +10,7 @@ from telegram.ext import (
 )
 
 # =============================================
-BOT_TOKEN    = "8774639906:AAGgFzCz7OIXFeMKSJKFLvI3OGTuE8RnMhE"
+BOT_TOKEN    = "8774639906:AAGlyNKjNLbm2teUEBpchYGfiQF0kqOexwM"
 CHANNEL_ID   = "@LoFlo_Xorazm"
 ADMIN_ID     = 552774752
 KARTA_RAQAM  = "9860 1201 7946 6285"
