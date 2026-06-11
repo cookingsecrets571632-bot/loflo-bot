@@ -67,29 +67,12 @@ def add_watermark(photo_bytes):
 
         sana = datetime.now(UZ_TZ).strftime("%d.%m.%y | %H:%M")
 
-        font_paths_bold = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-            "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
-        ]
-        font_paths_regular = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-        ]
-
-        def load_font(paths, size):
-            for path in paths:
-                try:
-                    return ImageFont.truetype(path, size)
-                except:
-                    continue
-            return ImageFont.truetype(ImageFont.load_default().path, size) if hasattr(ImageFont.load_default(), 'path') else ImageFont.load_default()
-
-        font_big   = load_font(font_paths_bold, font_size_big)
-        font_small = load_font(font_paths_regular, font_size_small)
+        try:
+            font_big   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size_big)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size_small)
+        except:
+            font_big   = ImageFont.load_default()
+            font_small = ImageFont.load_default()
 
         text1 = "LoFlo"
         text2 = "@LoFlo_Xorazm"
@@ -549,18 +532,15 @@ def main():
             NARX:   [MessageHandler(filters.TEXT & ~filters.COMMAND, narx_olish)],
             TELEFON:[MessageHandler(filters.TEXT & ~filters.COMMAND, telefon_olish)],
             VILOYAT:[CallbackQueryHandler(viloyat_olish, pattern=r"^viloyat_"),
-                     CallbackQueryHandler(orqaga_viloyat, pattern=r"^orqaga_viloyat$"),
                      MessageHandler(filters.TEXT & ~filters.COMMAND, viloyat_eslatma)],
             TUMAN:  [CallbackQueryHandler(tuman_olish, pattern=r"^tuman_"),
                      CallbackQueryHandler(qolda_kiritish, pattern=r"^qolda_kiritish$"),
-                     CallbackQueryHandler(orqaga_viloyat, pattern=r"^orqaga_viloyat$"),
-                     CallbackQueryHandler(viloyat_olish, pattern=r"^viloyat_")],
+                     CallbackQueryHandler(orqaga_viloyat, pattern=r"^orqaga_viloyat$")],
             JOYLASHUV_QOLDA: [MessageHandler(filters.TEXT & ~filters.COMMAND, joylashuv_qolda_olish)],
             CHEK:   [MessageHandler(filters.PHOTO, chek_olish),
                      MessageHandler(filters.TEXT & ~filters.COMMAND, chek_olish)],
         },
         fallbacks=[CommandHandler("bekor", bekor)],
-        allow_reentry=True,
     )
 
     app.add_handler(CommandHandler("start", start))
