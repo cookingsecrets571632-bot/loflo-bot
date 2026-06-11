@@ -15,14 +15,11 @@ from telegram.ext import (
 )
 
 # =============================================
-BOT_TOKEN    = os.getenv("BOT_TOKEN", "")
-CHANNEL_ID   = os.getenv("CHANNEL_ID", "@LoFlo_Xorazm")
-ADMIN_ID     = int(os.getenv("ADMIN_ID", "552774752"))
-KARTA_RAQAM  = os.getenv("KARTA_RAQAM", "9860 1201 7946 6285")
+BOT_TOKEN    = "8774639906:AAHOYVcQ91PB2ac1DomG5EFD0FKh2Jf-11U"
+CHANNEL_ID   = "@LoFlo_Xorazm"
+ADMIN_ID     = 552774752
+KARTA_RAQAM  = "9860 1201 7946 6285"
 # =============================================
-
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN topilmadi! Railway Variables ga qo'shing.")
 
 # O'zbekiston vaqti UTC+5
 UZ_TZ = timezone(timedelta(hours=5))
