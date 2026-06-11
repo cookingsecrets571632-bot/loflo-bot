@@ -224,12 +224,24 @@ async def telefon_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data_store[uid]["telefon"] = update.message.text
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🏙 Xorazm viloyati", callback_data="viloyat_Xorazm viloyati")],
-        [InlineKeyboardButton("🏛 Qoraqalpog'iston Respublikasi", callback_data="viloyat_Qoraqalpog'iston Respublikasi")],
+        [InlineKeyboardButton("🏙 Xorazm viloyati", callback_data="viloyat_xorazm")],
+        [InlineKeyboardButton("🏛 Qoraqalpog'iston Respublikasi", callback_data="viloyat_qoraqalpog")],
     ])
     await update.message.reply_text(
         "✅ Telefon qabul qilindi\\!\n\n📍 *5\\-qadam: Hudud*\n\nQaysi hududdasiz?",
         parse_mode="MarkdownV2",
+        reply_markup=keyboard
+    )
+    return VILOYAT
+
+
+async def viloyat_eslatma(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏙 Xorazm viloyati", callback_data="viloyat_xorazm")],
+        [InlineKeyboardButton("🏛 Qoraqalpog'iston Respublikasi", callback_data="viloyat_qoraqalpog")],
+    ])
+    await update.message.reply_text(
+        "⬇️ Iltimos, quyidagi tugmalardan birini tanlang:",
         reply_markup=keyboard
     )
     return VILOYAT
@@ -240,10 +252,16 @@ async def viloyat_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     uid = query.from_user.id
-    viloyat = query.data.replace("viloyat_", "")
-    user_data_store[uid]["viloyat"] = viloyat
+    viloyat_key = query.data.replace("viloyat_", "")
 
-    tumanlar = TUMANLAR[viloyat]
+    viloyat_nomi = {
+        "xorazm": "Xorazm viloyati",
+        "qoraqalpog": "Qoraqalpog'iston Respublikasi"
+    }.get(viloyat_key, "Xorazm viloyati")
+
+    user_data_store[uid]["viloyat"] = viloyat_nomi
+
+    tumanlar = TUMANLAR[viloyat_nomi]
     buttons = []
     for i in range(0, len(tumanlar), 2):
         row = [InlineKeyboardButton(tumanlar[i], callback_data=f"tuman_{tumanlar[i]}")]
@@ -255,7 +273,7 @@ async def viloyat_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buttons.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="orqaga_viloyat")])
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(
-        f"📍 *{escape_md(viloyat)}* tanlandi\\!\n\nEndi tuman yoki shaharni tanlang:",
+        f"📍 *{escape_md(viloyat_nomi)}* tanlandi\\!\n\nEndi tuman yoki shaharni tanlang:",
         parse_mode="MarkdownV2",
         reply_markup=keyboard
     )
@@ -266,8 +284,8 @@ async def orqaga_viloyat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🏙 Xorazm viloyati", callback_data="viloyat_Xorazm viloyati")],
-        [InlineKeyboardButton("🏛 Qoraqalpog'iston Respublikasi", callback_data="viloyat_Qoraqalpog'iston Respublikasi")],
+        [InlineKeyboardButton("🏙 Xorazm viloyati", callback_data="viloyat_xorazm")],
+        [InlineKeyboardButton("🏛 Qoraqalpog'iston Respublikasi", callback_data="viloyat_qoraqalpog")],
     ])
     await query.edit_message_text(
         "📍 *5\\-qadam: Hudud*\n\nQaysi hududdasiz?",
@@ -513,7 +531,8 @@ def main():
             RASM2:  [MessageHandler(filters.PHOTO, rasm2_olish)],
             NARX:   [MessageHandler(filters.TEXT & ~filters.COMMAND, narx_olish)],
             TELEFON:[MessageHandler(filters.TEXT & ~filters.COMMAND, telefon_olish)],
-            VILOYAT:[CallbackQueryHandler(viloyat_olish, pattern=r"^viloyat_")],
+            VILOYAT:[CallbackQueryHandler(viloyat_olish, pattern=r"^viloyat_"),
+                     MessageHandler(filters.TEXT & ~filters.COMMAND, viloyat_eslatma)],
             TUMAN:  [CallbackQueryHandler(tuman_olish, pattern=r"^tuman_"),
                      CallbackQueryHandler(qolda_kiritish, pattern=r"^qolda_kiritish$"),
                      CallbackQueryHandler(orqaga_viloyat, pattern=r"^orqaga_viloyat$")],
