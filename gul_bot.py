@@ -27,7 +27,7 @@ UZ_TZ = timezone(timedelta(hours=5))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-RASM1, RASM2, NARX, TELEFON, VILOYAT, TUMAN, CHEK = range(7)
+RASM1, RASM2, NARX, TELEFON, VILOYAT, TUMAN, JOYLASHUV_QOLDA, CHEK = range(8)
 user_data_store = {}
 active_ads = {}
 pending_payments = {}
@@ -35,8 +35,8 @@ pending_payments = {}
 # Hudud ma'lumotlari
 TUMANLAR = {
     "Xorazm viloyati": [
-        "Urganch shahri", "Xiva shahri", "Bog'ot tumani", "Gurlen tumani",
-        "Xazorasp tumani", "Xiva tumani", "Qo'shko'pir tumani",
+        "Urganch shahri", "Xiva shahri", "Bog'ot tumani", "Gurlan tumani",
+        "Hazorasp tumani", "Xiva tumani", "Xonqa tumani", "Qo'shko'pir tumani",
         "Shovot tumani", "Tuproqqal'a tumani", "Urganch tumani",
         "Yangiariq tumani", "Yangibozor tumani"
     ],
@@ -251,6 +251,8 @@ async def viloyat_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
             row.append(InlineKeyboardButton(tumanlar[i+1], callback_data=f"tuman_{tumanlar[i+1]}"))
         buttons.append(row)
 
+    buttons.append([InlineKeyboardButton("✏️ Qo'lda kiritish", callback_data="qolda_kiritish")])
+    buttons.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="orqaga_viloyat")])
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(
         f"📍 *{escape_md(viloyat)}* tanlandi\\!\n\nEndi tuman yoki shaharni tanlang:",
@@ -258,6 +260,52 @@ async def viloyat_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=keyboard
     )
     return TUMAN
+
+
+async def orqaga_viloyat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏙 Xorazm viloyati", callback_data="viloyat_Xorazm viloyati")],
+        [InlineKeyboardButton("🏛 Qoraqalpog'iston Respublikasi", callback_data="viloyat_Qoraqalpog'iston Respublikasi")],
+    ])
+    await query.edit_message_text(
+        "📍 *5\\-qadam: Hudud*\n\nQaysi hududdasiz?",
+        parse_mode="MarkdownV2",
+        reply_markup=keyboard
+    )
+    return VILOYAT
+
+
+async def qolda_kiritish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "✏️ *Joylashuvni qo'lda kiriting:*\n\nMasalan: _Urganch, Ipakchi ko'chasi_",
+        parse_mode="MarkdownV2"
+    )
+    return JOYLASHUV_QOLDA
+
+
+async def joylashuv_qolda_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.message.from_user.id
+    joylashuv = update.message.text
+    user_data_store[uid]["joylashuv"] = joylashuv
+    user_data_store[uid]["owner_id"] = uid
+    user_data_store[uid]["vaqt"] = datetime.now(UZ_TZ)
+
+    karta = escape_md(KARTA_RAQAM)
+    await update.message.reply_text(
+        f"✅ *{escape_md(joylashuv)}* qabul qilindi\\!\n\n"
+        f"━━━━━━━━━━━━━━━━━\n"
+        f"💳 *TO'LOV*\n\n"
+        f"E'lon narxi: *20 000 so'm*\n"
+        f"Karta raqami:\n`{karta}`\n\n"
+        f"📌 To'lovni amalga oshirib, *chek rasmini* yuboring\\.\n"
+        f"━━━━━━━━━━━━━━━━━",
+        parse_mode="MarkdownV2"
+    )
+    return CHEK
 
 
 async def tuman_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -466,7 +514,10 @@ def main():
             NARX:   [MessageHandler(filters.TEXT & ~filters.COMMAND, narx_olish)],
             TELEFON:[MessageHandler(filters.TEXT & ~filters.COMMAND, telefon_olish)],
             VILOYAT:[CallbackQueryHandler(viloyat_olish, pattern=r"^viloyat_")],
-            TUMAN:  [CallbackQueryHandler(tuman_olish, pattern=r"^tuman_")],
+            TUMAN:  [CallbackQueryHandler(tuman_olish, pattern=r"^tuman_"),
+                     CallbackQueryHandler(qolda_kiritish, pattern=r"^qolda_kiritish$"),
+                     CallbackQueryHandler(orqaga_viloyat, pattern=r"^orqaga_viloyat$")],
+            JOYLASHUV_QOLDA: [MessageHandler(filters.TEXT & ~filters.COMMAND, joylashuv_qolda_olish)],
             CHEK:   [MessageHandler(filters.PHOTO, chek_olish),
                      MessageHandler(filters.TEXT & ~filters.COMMAND, chek_olish)],
         },
