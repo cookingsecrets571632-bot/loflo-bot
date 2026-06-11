@@ -1,7 +1,8 @@
 import logging
 import re
 import io
-from datetime import datetime
+import os
+from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageDraw, ImageFont
 from telegram import (
     Update, ReplyKeyboardRemove,
@@ -14,11 +15,14 @@ from telegram.ext import (
 )
 
 # =============================================
-BOT_TOKEN    = "8774639906:AAHOYVcQ91PB2ac1DomG5EFD0FKh2Jf-11U"
-CHANNEL_ID   = "@LoFlo_Xorazm"
-ADMIN_ID     = 552774752
-KARTA_RAQAM  = "9860 1201 7946 6285"
+BOT_TOKEN    = os.getenv("8774639906:AAHOYVcQ91PB2ac1DomG5EFD0FKh2Jf-11U", "")
+CHANNEL_ID   = os.getenv("CHANNEL_ID", "@LoFlo_Xorazm")
+ADMIN_ID     = int(os.getenv("ADMIN_ID", "552774752"))
+KARTA_RAQAM  = os.getenv("KARTA_RAQAM", "9860 1201 7946 6285")
 # =============================================
+
+# O'zbekiston vaqti UTC+5
+UZ_TZ = timezone(timedelta(hours=5))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,16 +45,18 @@ def add_watermark(photo_bytes):
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        # Katta shrift — rasmning 1/12 qismi
-        font_size_big = max(48, width // 12)
-        font_size_small = max(32, width // 18)
-        sana = datetime.now().strftime("%d.%m.%y | %H:%M")
+        # Shriftlar — hozirgi razmerdan 8 birlik katta
+        font_size_big   = max(56, width // 12) + 8
+        font_size_small = max(40, width // 18) + 8
+
+        # O'zbekiston vaqti
+        sana = datetime.now(UZ_TZ).strftime("%d.%m.%y | %H:%M")
 
         try:
-            font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size_big)
+            font_big   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size_big)
             font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size_small)
         except:
-            font_big = ImageFont.load_default()
+            font_big   = ImageFont.load_default()
             font_small = ImageFont.load_default()
 
         text1 = "LoFlo"
@@ -68,8 +74,8 @@ def add_watermark(photo_bytes):
         h2 = bbox2[3] - bbox2[1]
         h3 = bbox3[3] - bbox3[1]
 
-        padding = 20
-        max_w = max(w1, w2, w3) + padding * 2
+        padding = 24
+        max_w   = max(w1, w2, w3) + padding * 2
         total_h = h1 + h2 + h3 + padding * 4
 
         # Yuqori o'ng burchak
@@ -79,7 +85,7 @@ def add_watermark(photo_bytes):
         # Qora shaffof fon
         draw.rounded_rectangle(
             [x - padding, y, x + max_w, y + total_h],
-            radius=16,
+            radius=18,
             fill=(0, 0, 0, 170)
         )
 
@@ -110,8 +116,8 @@ def add_watermark(photo_bytes):
 
 
 def format_caption(data, sotildi=False, daqiqa=None):
-    narx = escape_md(data['narx'])
-    telefon = escape_md(data['telefon'])
+    narx      = escape_md(data['narx'])
+    telefon   = escape_md(data['telefon'])
     joylashuv = escape_md(data['joylashuv'])
     base = (
         "🌸 *GUL SOTILADI\!*\n\n"
@@ -125,11 +131,12 @@ def format_caption(data, sotildi=False, daqiqa=None):
 
 
 def format_caption_sotildi(data, daqiqa):
-    narx = escape_md(data['narx'])
+    narx      = escape_md(data['narx'])
     joylashuv = escape_md(data['joylashuv'])
     return (
         "🌸 *GUL SOTILADI\!*\n\n"
         f"💰 *Narx:* {narx}\n"
+        f"📞 *Telefon:* 🔒 _Raqam yashirildi_\n"
         f"📍 *Joylashuv:* {joylashuv}\n\n"
         f"✅ *SOTILDI\!* ⏱ {daqiqa} daqiqada sotildi\!"
     )
@@ -216,7 +223,7 @@ async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["joylashuv"] = update.message.text
     user_data_store[uid]["owner_id"] = uid
-    user_data_store[uid]["vaqt"] = datetime.now()
+    user_data_store[uid]["vaqt"] = datetime.now(UZ_TZ)  # UTC+5
     karta = escape_md(KARTA_RAQAM)
     await update.message.reply_text(
         f"✅ Ma'lumotlar qabul qilindi\\!\n\n"
@@ -244,10 +251,10 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{uid}"),
-        InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}"),
+        InlineKeyboardButton("❌ Rad etish",  callback_data=f"reject_{uid}"),
     ]])
 
-    user = update.message.from_user
+    user     = update.message.from_user
     username = f"@{user.username}" if user.username else user.full_name
 
     await context.bot.send_photo(
@@ -281,10 +288,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("❌ Siz admin emassiz!", show_alert=True)
         return
 
-    parts = query.data.split("_", 1)
-    action, uid_str = parts[0], parts[1]
-    uid = int(uid_str)
-    ad = pending_payments.get(uid)
+    parts      = query.data.split("_", 1)
+    action     = parts[0]
+    uid        = int(parts[1])
+    ad         = pending_payments.get(uid)
 
     if not ad:
         await query.edit_message_caption(caption="⚠️ Bu so'rov allaqachon ko'rib chiqilgan.")
@@ -292,7 +299,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "approve":
         try:
-            # Ikkala rasmni album sifatida yuborish
             media = [
                 InputMediaPhoto(
                     media=ad["photo_id1"],
@@ -305,7 +311,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=CHANNEL_ID,
                 media=media
             )
-            # Birinchi xabar ID ni saqlash
             msg_id = sent_messages[0].message_id
             active_ads[msg_id] = {**ad, "sotildi": False}
 
@@ -341,9 +346,9 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    parts = query.data.split("_")
+    parts    = query.data.split("_")
     owner_id = int(parts[1])
-    msg_id = int(parts[2])
+    msg_id   = int(parts[2])
 
     if query.from_user.id != owner_id:
         await query.answer("❌ Faqat e'lon egasi bosishi mumkin!", show_alert=True)
@@ -353,10 +358,9 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Bu e'lon allaqachon sotilgan!", show_alert=True)
         return
 
-    ad = active_ads[msg_id]
-    daqiqa = max(1, int((datetime.now() - ad["vaqt"]).total_seconds() // 60))
+    ad     = active_ads[msg_id]
+    daqiqa = max(1, int((datetime.now(UZ_TZ) - ad["vaqt"]).total_seconds() // 60))
 
-    # Birinchi rasmdagi captionni yangilash — telefonsiz
     await context.bot.edit_message_caption(
         chat_id=CHANNEL_ID,
         message_id=msg_id,
@@ -372,7 +376,7 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def elonlarim(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.message.from_user.id
+    uid    = update.message.from_user.id
     my_ads = {
         mid: ad for mid, ad in active_ads.items()
         if ad["owner_id"] == uid and not ad["sotildi"]
@@ -382,7 +386,7 @@ async def elonlarim(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     for mid, ad in my_ads.items():
-        daqiqa = int((datetime.now() - ad["vaqt"]).total_seconds() // 60)
+        daqiqa   = int((datetime.now(UZ_TZ) - ad["vaqt"]).total_seconds() // 60)
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{mid}")
         ]])
