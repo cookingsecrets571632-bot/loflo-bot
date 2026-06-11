@@ -15,11 +15,14 @@ from telegram.ext import (
 )
 
 # =============================================
-BOT_TOKEN    = os.getenv("8774639906:AAHOYVcQ91PB2ac1DomG5EFD0FKh2Jf-11U", "")
+BOT_TOKEN    = os.getenv("BOT_TOKEN", "")
 CHANNEL_ID   = os.getenv("CHANNEL_ID", "@LoFlo_Xorazm")
 ADMIN_ID     = int(os.getenv("ADMIN_ID", "552774752"))
 KARTA_RAQAM  = os.getenv("KARTA_RAQAM", "9860 1201 7946 6285")
 # =============================================
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN topilmadi! Railway Variables ga qo'shing.")
 
 # O'zbekiston vaqti UTC+5
 UZ_TZ = timezone(timedelta(hours=5))
@@ -45,11 +48,9 @@ def add_watermark(photo_bytes):
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        # Shriftlar — hozirgi razmerdan 8 birlik katta
         font_size_big   = max(56, width // 12) + 8
         font_size_small = max(40, width // 18) + 8
 
-        # O'zbekiston vaqti
         sana = datetime.now(UZ_TZ).strftime("%d.%m.%y | %H:%M")
 
         try:
@@ -78,28 +79,23 @@ def add_watermark(photo_bytes):
         max_w   = max(w1, w2, w3) + padding * 2
         total_h = h1 + h2 + h3 + padding * 4
 
-        # Yuqori o'ng burchak
         x = width - max_w - 15
         y = 15
 
-        # Qora shaffof fon
         draw.rounded_rectangle(
             [x - padding, y, x + max_w, y + total_h],
             radius=18,
             fill=(0, 0, 0, 170)
         )
 
-        # LoFlo — oq, katta
         draw.text(
             (x + (max_w - w1) // 2 - padding, y + padding),
             text1, font=font_big, fill=(255, 255, 255, 255)
         )
-        # @LoFlo_Xorazm — pushti
         draw.text(
             (x + (max_w - w2) // 2 - padding, y + padding + h1 + padding // 2),
             text2, font=font_small, fill=(237, 147, 177, 255)
         )
-        # Sana — och kulrang
         draw.text(
             (x + (max_w - w3) // 2 - padding, y + padding + h1 + h2 + padding),
             text3, font=font_small, fill=(200, 200, 200, 220)
@@ -223,7 +219,7 @@ async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["joylashuv"] = update.message.text
     user_data_store[uid]["owner_id"] = uid
-    user_data_store[uid]["vaqt"] = datetime.now(UZ_TZ)  # UTC+5
+    user_data_store[uid]["vaqt"] = datetime.now(UZ_TZ)
     karta = escape_md(KARTA_RAQAM)
     await update.message.reply_text(
         f"✅ Ma'lumotlar qabul qilindi\\!\n\n"
