@@ -5,7 +5,8 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from telegram import (
     Update, ReplyKeyboardRemove,
-    InlineKeyboardButton, InlineKeyboardMarkup
+    InlineKeyboardButton, InlineKeyboardMarkup,
+    InputMediaPhoto
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -39,30 +40,65 @@ def add_watermark(photo_bytes):
         width, height = img.size
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
-        font_size = max(30, width // 20)
+
+        # Katta shrift — rasmning 1/12 qismi
+        font_size_big = max(48, width // 12)
+        font_size_small = max(32, width // 18)
+        sana = datetime.now().strftime("%d.%m.%y | %H:%M")
+
         try:
-            font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int(font_size * 0.7))
+            font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size_big)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size_small)
         except:
             font_big = ImageFont.load_default()
             font_small = ImageFont.load_default()
 
         text1 = "LoFlo"
         text2 = "@LoFlo_Xorazm"
+        text3 = sana
+
         bbox1 = draw.textbbox((0, 0), text1, font=font_big)
         bbox2 = draw.textbbox((0, 0), text2, font=font_small)
+        bbox3 = draw.textbbox((0, 0), text3, font=font_small)
+
         w1 = bbox1[2] - bbox1[0]
         w2 = bbox2[2] - bbox2[0]
+        w3 = bbox3[2] - bbox3[0]
         h1 = bbox1[3] - bbox1[1]
         h2 = bbox2[3] - bbox2[1]
-        padding = 16
-        max_w = max(w1, w2) + padding * 2
-        total_h = h1 + h2 + padding * 3
-        x = width - max_w - 10
-        y = 10
-        draw.rounded_rectangle([x - padding, y, x + max_w, y + total_h], radius=12, fill=(0, 0, 0, 160))
-        draw.text((x + (max_w - w1) // 2 - padding, y + padding), text1, font=font_big, fill=(255, 255, 255, 255))
-        draw.text((x + (max_w - w2) // 2 - padding, y + padding + h1 + padding // 2), text2, font=font_small, fill=(237, 147, 177, 255))
+        h3 = bbox3[3] - bbox3[1]
+
+        padding = 20
+        max_w = max(w1, w2, w3) + padding * 2
+        total_h = h1 + h2 + h3 + padding * 4
+
+        # Yuqori o'ng burchak
+        x = width - max_w - 15
+        y = 15
+
+        # Qora shaffof fon
+        draw.rounded_rectangle(
+            [x - padding, y, x + max_w, y + total_h],
+            radius=16,
+            fill=(0, 0, 0, 170)
+        )
+
+        # LoFlo — oq, katta
+        draw.text(
+            (x + (max_w - w1) // 2 - padding, y + padding),
+            text1, font=font_big, fill=(255, 255, 255, 255)
+        )
+        # @LoFlo_Xorazm — pushti
+        draw.text(
+            (x + (max_w - w2) // 2 - padding, y + padding + h1 + padding // 2),
+            text2, font=font_small, fill=(237, 147, 177, 255)
+        )
+        # Sana — och kulrang
+        draw.text(
+            (x + (max_w - w3) // 2 - padding, y + padding + h1 + h2 + padding),
+            text3, font=font_small, fill=(200, 200, 200, 220)
+        )
+
         result = Image.alpha_composite(img, overlay).convert("RGB")
         output = io.BytesIO()
         result.save(output, format="JPEG", quality=95)
@@ -89,7 +125,6 @@ def format_caption(data, sotildi=False, daqiqa=None):
 
 
 def format_caption_sotildi(data, daqiqa):
-    """Telefon raqamsiz, faqat sotildi yozuvi"""
     narx = escape_md(data['narx'])
     joylashuv = escape_md(data['joylashuv'])
     return (
@@ -103,7 +138,7 @@ def format_caption_sotildi(data, daqiqa):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🌸 *LoFlo ga Xush Kelibsiz\!*\n\n"
-        "Gullaringizni tez va oson soting\!\n\n"
+        "Gullaringizni tez va oson soting yoki arzon narxda gul sotib oling\!\n\n"
         "📢 E'lon berish: /elon\n"
         "📋 Aktiv e'lonlarim: /elonlarim",
         parse_mode="MarkdownV2"
@@ -151,7 +186,7 @@ async def rasm2_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     user_data_store[uid]["photo_id2"] = msg.photo[-1].file_id
     await update.message.reply_text(
-        "✅ Ikkala rasm qabul qilindi\\!\n\n💰 *3\\-qadam: Narx*\n\nNarxini kiriting \\(masalan: 50000 so'm\\):",
+        "✅ Ikkala rasm qabul qilindi\\!\n\n💰 *3\\-qadam: Narx*\n\nNarxini kiriting:",
         parse_mode="MarkdownV2"
     )
     return NARX
@@ -257,27 +292,25 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "approve":
         try:
-            # Birinchi rasm — caption bilan
-            sent = await context.bot.send_photo(
+            # Ikkala rasmni album sifatida yuborish
+            media = [
+                InputMediaPhoto(
+                    media=ad["photo_id1"],
+                    caption=format_caption(ad),
+                    parse_mode="MarkdownV2"
+                ),
+                InputMediaPhoto(media=ad["photo_id2"])
+            ]
+            sent_messages = await context.bot.send_media_group(
                 chat_id=CHANNEL_ID,
-                photo=ad["photo_id1"],
-                caption=format_caption(ad),
-                parse_mode="MarkdownV2"
+                media=media
             )
-            # Ikkinchi rasm — captionsiz
-            sent2 = await context.bot.send_photo(
-                chat_id=CHANNEL_ID,
-                photo=ad["photo_id2"]
-            )
-
-            active_ads[sent.message_id] = {
-                **ad,
-                "sotildi": False,
-                "msg_id2": sent2.message_id
-            }
+            # Birinchi xabar ID ni saqlash
+            msg_id = sent_messages[0].message_id
+            active_ads[msg_id] = {**ad, "sotildi": False}
 
             sotildi_keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{sent.message_id}")
+                InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{msg_id}")
             ]])
             await context.bot.send_message(
                 chat_id=uid,
@@ -323,7 +356,7 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ad = active_ads[msg_id]
     daqiqa = max(1, int((datetime.now() - ad["vaqt"]).total_seconds() // 60))
 
-    # Birinchi rasmda telefon raqamsiz + sotildi yozuvi
+    # Birinchi rasmdagi captionni yangilash — telefonsiz
     await context.bot.edit_message_caption(
         chat_id=CHANNEL_ID,
         message_id=msg_id,
@@ -332,7 +365,6 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     active_ads[msg_id]["sotildi"] = True
 
-    # Sotuvchiga tabrik
     await query.edit_message_text(
         text=f"✅ Tabriklaymiz\\!\n\nGul *{daqiqa}* daqiqada sotildi\\! 🌸",
         parse_mode="MarkdownV2"
