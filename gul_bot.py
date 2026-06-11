@@ -27,10 +27,27 @@ UZ_TZ = timezone(timedelta(hours=5))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-RASM1, RASM2, NARX, TELEFON, JOYLASHUV, CHEK = range(6)
+RASM1, RASM2, NARX, TELEFON, VILOYAT, TUMAN, CHEK = range(7)
 user_data_store = {}
 active_ads = {}
 pending_payments = {}
+
+# Hudud ma'lumotlari
+TUMANLAR = {
+    "Xorazm viloyati": [
+        "Urganch shahri", "Xiva shahri", "Bog'ot tumani", "Gurlen tumani",
+        "Xazorasp tumani", "Xiva tumani", "Qo'shko'pir tumani",
+        "Shovot tumani", "Tuproqqal'a tumani", "Urganch tumani",
+        "Yangiariq tumani", "Yangibozor tumani"
+    ],
+    "Qoraqalpog'iston Respublikasi": [
+        "Nukus shahri", "Amudaryo tumani", "Beruniy tumani",
+        "Chimboy tumani", "Ellikkala tumani", "Kegeyli tumani",
+        "Mo'ynoq tumani", "Nukus tumani", "Qanlikko'l tumani",
+        "Qo'ng'irot tumani", "Qorao'zak tumani", "Shumanay tumani",
+        "Taxtako'pir tumani", "To'rtko'l tumani", "Xo'jayli tumani"
+    ]
+}
 
 
 def escape_md(text):
@@ -45,8 +62,8 @@ def add_watermark(photo_bytes):
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        font_size_big   = max(56, width // 12) + 8
-        font_size_small = max(40, width // 18) + 8
+        font_size_big   = (max(56, width // 12) + 8) * 2
+        font_size_small = (max(40, width // 18) + 8) * 2
 
         sana = datetime.now(UZ_TZ).strftime("%d.%m.%y | %H:%M")
 
@@ -113,32 +130,32 @@ def format_caption(data, sotildi=False, daqiqa=None):
     telefon   = escape_md(data['telefon'])
     joylashuv = escape_md(data['joylashuv'])
     base = (
-        "🌸 *GUL SOTILADI\!*\n\n"
+        "🌸 *GUL SOTILADI\\!*\n\n"
         f"💰 *Narx:* {narx}\n"
         f"📞 *Telefon:* {telefon}\n"
         f"📍 *Joylashuv:* {joylashuv}\n\n"
     )
     if sotildi:
-        return base + f"✅ *SOTILDI\!* ⏱ {daqiqa} daqiqada sotildi\!"
-    return base + "📩 Sotib olish uchun telefon raqamga murojaat qiling\!"
+        return base + f"✅ *SOTILDI\\!* ⏱ {daqiqa} daqiqada sotildi\\!"
+    return base + "📩 Sotib olish uchun telefon raqamga murojaat qiling\\!"
 
 
 def format_caption_sotildi(data, daqiqa):
     narx      = escape_md(data['narx'])
     joylashuv = escape_md(data['joylashuv'])
     return (
-        "🌸 *GUL SOTILADI\!*\n\n"
+        "🌸 *GUL SOTILADI\\!*\n\n"
         f"💰 *Narx:* {narx}\n"
         f"📞 *Telefon:* 🔒 _Raqam yashirildi_\n"
         f"📍 *Joylashuv:* {joylashuv}\n\n"
-        f"✅ *SOTILDI\!* ⏱ {daqiqa} daqiqada sotildi\!"
+        f"✅ *SOTILDI\\!* ⏱ {daqiqa} daqiqada sotildi\\!"
     )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🌸 *LoFlo ga Xush Kelibsiz\!*\n\n"
-        "Gullaringizni tez va oson soting yoki arzon narxda gul sotib oling\!\n\n"
+        "🌸 *LoFlo ga Xush Kelibsiz\\!*\n\n"
+        "Gullaringizni tez va oson soting yoki arzon narxda gul sotib oling\\!\n\n"
         "📢 E'lon berish: /elon\n"
         "📋 Aktiv e'lonlarim: /elonlarim",
         parse_mode="MarkdownV2"
@@ -205,21 +222,59 @@ async def narx_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def telefon_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["telefon"] = update.message.text
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏙 Xorazm viloyati", callback_data="viloyat_Xorazm viloyati")],
+        [InlineKeyboardButton("🏛 Qoraqalpog'iston Respublikasi", callback_data="viloyat_Qoraqalpog'iston Respublikasi")],
+    ])
     await update.message.reply_text(
-        "✅ Telefon qabul qilindi\\!\n\n📍 *5\\-qadam: Joylashuv*\n\nQayerda turasiz?",
-        parse_mode="MarkdownV2"
+        "✅ Telefon qabul qilindi\\!\n\n📍 *5\\-qadam: Hudud*\n\nQaysi hududdasiz?",
+        parse_mode="MarkdownV2",
+        reply_markup=keyboard
     )
-    return JOYLASHUV
+    return VILOYAT
 
 
-async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.message.from_user.id
-    user_data_store[uid]["joylashuv"] = update.message.text
+async def viloyat_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    uid = query.from_user.id
+    viloyat = query.data.replace("viloyat_", "")
+    user_data_store[uid]["viloyat"] = viloyat
+
+    tumanlar = TUMANLAR[viloyat]
+    buttons = []
+    for i in range(0, len(tumanlar), 2):
+        row = [InlineKeyboardButton(tumanlar[i], callback_data=f"tuman_{tumanlar[i]}")]
+        if i + 1 < len(tumanlar):
+            row.append(InlineKeyboardButton(tumanlar[i+1], callback_data=f"tuman_{tumanlar[i+1]}"))
+        buttons.append(row)
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(
+        f"📍 *{escape_md(viloyat)}* tanlandi\\!\n\nEndi tuman yoki shaharni tanlang:",
+        parse_mode="MarkdownV2",
+        reply_markup=keyboard
+    )
+    return TUMAN
+
+
+async def tuman_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    uid = query.from_user.id
+    tuman = query.data.replace("tuman_", "")
+    viloyat = user_data_store[uid].get("viloyat", "")
+    joylashuv = f"{viloyat}, {tuman}"
+    user_data_store[uid]["joylashuv"] = joylashuv
     user_data_store[uid]["owner_id"] = uid
     user_data_store[uid]["vaqt"] = datetime.now(UZ_TZ)
+
     karta = escape_md(KARTA_RAQAM)
-    await update.message.reply_text(
-        f"✅ Ma'lumotlar qabul qilindi\\!\n\n"
+    await query.edit_message_text(
+        f"✅ *{escape_md(joylashuv)}* tanlandi\\!\n\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"💳 *TO'LOV*\n\n"
         f"E'lon narxi: *20 000 so'm*\n"
@@ -406,13 +461,14 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler("elon", elon_start)],
         states={
-            RASM1:     [MessageHandler(filters.PHOTO, rasm1_olish)],
-            RASM2:     [MessageHandler(filters.PHOTO, rasm2_olish)],
-            NARX:      [MessageHandler(filters.TEXT & ~filters.COMMAND, narx_olish)],
-            TELEFON:   [MessageHandler(filters.TEXT & ~filters.COMMAND, telefon_olish)],
-            JOYLASHUV: [MessageHandler(filters.TEXT & ~filters.COMMAND, joylashuv_olish)],
-            CHEK:      [MessageHandler(filters.PHOTO, chek_olish),
-                        MessageHandler(filters.TEXT & ~filters.COMMAND, chek_olish)],
+            RASM1:  [MessageHandler(filters.PHOTO, rasm1_olish)],
+            RASM2:  [MessageHandler(filters.PHOTO, rasm2_olish)],
+            NARX:   [MessageHandler(filters.TEXT & ~filters.COMMAND, narx_olish)],
+            TELEFON:[MessageHandler(filters.TEXT & ~filters.COMMAND, telefon_olish)],
+            VILOYAT:[CallbackQueryHandler(viloyat_olish, pattern=r"^viloyat_")],
+            TUMAN:  [CallbackQueryHandler(tuman_olish, pattern=r"^tuman_")],
+            CHEK:   [MessageHandler(filters.PHOTO, chek_olish),
+                     MessageHandler(filters.TEXT & ~filters.COMMAND, chek_olish)],
         },
         fallbacks=[CommandHandler("bekor", bekor)],
     )
