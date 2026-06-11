@@ -1,5 +1,8 @@
 import logging
+import re
+import io
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
 from telegram import (
     Update, ReplyKeyboardRemove,
     InlineKeyboardButton, InlineKeyboardMarkup
@@ -8,7 +11,6 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, filters, ContextTypes, ConversationHandler,
 )
-import re
 
 # =============================================
 BOT_TOKEN    = "8774639906:AAGlyNKjNLbm2teUEBpchYGfiQF0kqOexwM"
@@ -20,23 +22,61 @@ KARTA_RAQAM  = "9860 1201 7946 6285"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-RASM, NARX, TELEFON, JOYLASHUV, CHEK = range(5)
+RASM1, RASM2, NARX, TELEFON, JOYLASHUV, CHEK = range(6)
 user_data_store = {}
 active_ads = {}
 pending_payments = {}
 
 
 def escape_md(text):
-    """Foydalanuvchi matnidagi Markdown belgilarini himoyalash"""
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', str(text))
+
+
+def add_watermark(photo_bytes):
+    try:
+        img = Image.open(io.BytesIO(photo_bytes)).convert("RGBA")
+        width, height = img.size
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        font_size = max(30, width // 20)
+        try:
+            font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int(font_size * 0.7))
+        except:
+            font_big = ImageFont.load_default()
+            font_small = ImageFont.load_default()
+
+        text1 = "LoFlo"
+        text2 = "@LoFlo_Xorazm"
+        bbox1 = draw.textbbox((0, 0), text1, font=font_big)
+        bbox2 = draw.textbbox((0, 0), text2, font=font_small)
+        w1 = bbox1[2] - bbox1[0]
+        w2 = bbox2[2] - bbox2[0]
+        h1 = bbox1[3] - bbox1[1]
+        h2 = bbox2[3] - bbox2[1]
+        padding = 16
+        max_w = max(w1, w2) + padding * 2
+        total_h = h1 + h2 + padding * 3
+        x = width - max_w - 10
+        y = 10
+        draw.rounded_rectangle([x - padding, y, x + max_w, y + total_h], radius=12, fill=(0, 0, 0, 160))
+        draw.text((x + (max_w - w1) // 2 - padding, y + padding), text1, font=font_big, fill=(255, 255, 255, 255))
+        draw.text((x + (max_w - w2) // 2 - padding, y + padding + h1 + padding // 2), text2, font=font_small, fill=(237, 147, 177, 255))
+        result = Image.alpha_composite(img, overlay).convert("RGB")
+        output = io.BytesIO()
+        result.save(output, format="JPEG", quality=95)
+        output.seek(0)
+        return output
+    except Exception as e:
+        logger.error(f"Watermark xato: {e}")
+        return io.BytesIO(photo_bytes)
 
 
 def format_caption(data, sotildi=False, daqiqa=None):
     narx = escape_md(data['narx'])
     telefon = escape_md(data['telefon'])
     joylashuv = escape_md(data['joylashuv'])
-
     base = (
         "🌸 *GUL SOTILADI\!*\n\n"
         f"💰 *Narx:* {narx}\n"
@@ -48,10 +88,22 @@ def format_caption(data, sotildi=False, daqiqa=None):
     return base + "📩 Sotib olish uchun telefon raqamga murojaat qiling\!"
 
 
+def format_caption_sotildi(data, daqiqa):
+    """Telefon raqamsiz, faqat sotildi yozuvi"""
+    narx = escape_md(data['narx'])
+    joylashuv = escape_md(data['joylashuv'])
+    return (
+        "🌸 *GUL SOTILADI\!*\n\n"
+        f"💰 *Narx:* {narx}\n"
+        f"📍 *Joylashuv:* {joylashuv}\n\n"
+        f"✅ *SOTILDI\!* ⏱ {daqiqa} daqiqada sotildi\!"
+    )
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🌸 *LoFlo ga Xush Kelibsiz\!*\n\n"
-        "Gullaringizni tez va oson soting yoki arzon narxda gul sotib oling\!\n\n"
+        "Gullaringizni tez va oson soting\!\n\n"
         "📢 E'lon berish: /elon\n"
         "📋 Aktiv e'lonlarim: /elonlarim",
         parse_mode="MarkdownV2"
@@ -60,18 +112,46 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def elon_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📸 *1\\-qadam: Gul rasmi*\n\nGulning rasmini yuboring:",
+        "📸 *1\\-qadam: Birinchi rasm*\n\nGulning *birinchi rasmini* yuboring:",
         parse_mode="MarkdownV2",
         reply_markup=ReplyKeyboardRemove()
     )
-    return RASM
+    return RASM1
 
 
-async def rasm_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def rasm1_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
-    user_data_store[uid] = {"photo_id": update.message.photo[-1].file_id}
+    photo = update.message.photo[-1]
+    photo_file = await context.bot.get_file(photo.file_id)
+    photo_bytes = await photo_file.download_as_bytearray()
+    watermarked = add_watermark(bytes(photo_bytes))
+    msg = await update.message.reply_photo(
+        photo=watermarked,
+        caption="✅ 1\\-rasm qabul qilindi\\!",
+        parse_mode="MarkdownV2"
+    )
+    user_data_store[uid] = {"photo_id1": msg.photo[-1].file_id}
     await update.message.reply_text(
-        "✅ Rasm qabul qilindi\\!\n\n💰 *2\\-qadam: Narx*\n\nNarxini kiriting \\(masalan: 50000 so'm\\):",
+        "📸 *2\\-qadam: Ikkinchi rasm*\n\nGulning *ikkinchi rasmini* yuboring:",
+        parse_mode="MarkdownV2"
+    )
+    return RASM2
+
+
+async def rasm2_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.message.from_user.id
+    photo = update.message.photo[-1]
+    photo_file = await context.bot.get_file(photo.file_id)
+    photo_bytes = await photo_file.download_as_bytearray()
+    watermarked = add_watermark(bytes(photo_bytes))
+    msg = await update.message.reply_photo(
+        photo=watermarked,
+        caption="✅ 2\\-rasm qabul qilindi\\!",
+        parse_mode="MarkdownV2"
+    )
+    user_data_store[uid]["photo_id2"] = msg.photo[-1].file_id
+    await update.message.reply_text(
+        "✅ Ikkala rasm qabul qilindi\\!\n\n💰 *3\\-qadam: Narx*\n\nNarxini kiriting \\(masalan: 50000 so'm\\):",
         parse_mode="MarkdownV2"
     )
     return NARX
@@ -81,7 +161,7 @@ async def narx_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["narx"] = update.message.text
     await update.message.reply_text(
-        "✅ Narx qabul qilindi\\!\n\n📞 *3\\-qadam: Telefon*\n\nTelefon raqamingizni kiriting:",
+        "✅ Narx qabul qilindi\\!\n\n📞 *4\\-qadam: Telefon*\n\nTelefon raqamingizni kiriting:",
         parse_mode="MarkdownV2"
     )
     return TELEFON
@@ -91,7 +171,7 @@ async def telefon_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data_store[uid]["telefon"] = update.message.text
     await update.message.reply_text(
-        "✅ Telefon qabul qilindi\\!\n\n📍 *4\\-qadam: Joylashuv*\n\nQayerda turasiz?",
+        "✅ Telefon qabul qilindi\\!\n\n📍 *5\\-qadam: Joylashuv*\n\nQayerda turasiz?",
         parse_mode="MarkdownV2"
     )
     return JOYLASHUV
@@ -102,7 +182,6 @@ async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data_store[uid]["joylashuv"] = update.message.text
     user_data_store[uid]["owner_id"] = uid
     user_data_store[uid]["vaqt"] = datetime.now()
-
     karta = escape_md(KARTA_RAQAM)
     await update.message.reply_text(
         f"✅ Ma'lumotlar qabul qilindi\\!\n\n"
@@ -119,12 +198,8 @@ async def joylashuv_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
-
     if not update.message.photo:
-        await update.message.reply_text(
-            "❗ Iltimos, chek rasmini yuboring\\.",
-            parse_mode="MarkdownV2"
-        )
+        await update.message.reply_text("❗ Iltimos, chek rasmini yuboring\\.", parse_mode="MarkdownV2")
         return CHEK
 
     chek_photo_id = update.message.photo[-1].file_id
@@ -132,12 +207,10 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ad_data["chek_photo_id"] = chek_photo_id
     pending_payments[uid] = ad_data
 
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{uid}"),
-            InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}"),
-        ]
-    ])
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{uid}"),
+        InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}"),
+    ]])
 
     user = update.message.from_user
     username = f"@{user.username}" if user.username else user.full_name
@@ -157,12 +230,10 @@ async def chek_olish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(
-        "⏳ Chek adminga yuborildi\\!\n\n"
-        "5\\-15 daqiqa ichida tasdiqlanadi\\. 🌸",
+        "⏳ Chek adminga yuborildi\\!\n\n5\\-15 daqiqa ichida tasdiqlanadi\\. 🌸",
         parse_mode="MarkdownV2",
         reply_markup=ReplyKeyboardRemove()
     )
-
     user_data_store.pop(uid, None)
     return ConversationHandler.END
 
@@ -186,17 +257,28 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "approve":
         try:
+            # Birinchi rasm — caption bilan
             sent = await context.bot.send_photo(
                 chat_id=CHANNEL_ID,
-                photo=ad["photo_id"],
+                photo=ad["photo_id1"],
                 caption=format_caption(ad),
                 parse_mode="MarkdownV2"
             )
-            active_ads[sent.message_id] = {**ad, "sotildi": False}
+            # Ikkinchi rasm — captionsiz
+            sent2 = await context.bot.send_photo(
+                chat_id=CHANNEL_ID,
+                photo=ad["photo_id2"]
+            )
 
-            sotildi_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{sent.message_id}")]
-            ])
+            active_ads[sent.message_id] = {
+                **ad,
+                "sotildi": False,
+                "msg_id2": sent2.message_id
+            }
+
+            sotildi_keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{sent.message_id}")
+            ]])
             await context.bot.send_message(
                 chat_id=uid,
                 text=(
@@ -207,7 +289,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="MarkdownV2",
                 reply_markup=sotildi_keyboard
             )
-
             await query.edit_message_caption(caption="✅ Tasdiqlandi — E'lon kanalga chiqarildi.")
         except Exception as e:
             logger.error(f"Xato: {e}")
@@ -242,14 +323,16 @@ async def sotildi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ad = active_ads[msg_id]
     daqiqa = max(1, int((datetime.now() - ad["vaqt"]).total_seconds() // 60))
 
+    # Birinchi rasmda telefon raqamsiz + sotildi yozuvi
     await context.bot.edit_message_caption(
         chat_id=CHANNEL_ID,
         message_id=msg_id,
-        caption=format_caption(ad, sotildi=True, daqiqa=daqiqa),
+        caption=format_caption_sotildi(ad, daqiqa),
         parse_mode="MarkdownV2"
     )
     active_ads[msg_id]["sotildi"] = True
 
+    # Sotuvchiga tabrik
     await query.edit_message_text(
         text=f"✅ Tabriklaymiz\\!\n\nGul *{daqiqa}* daqiqada sotildi\\! 🌸",
         parse_mode="MarkdownV2"
@@ -262,22 +345,19 @@ async def elonlarim(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mid: ad for mid, ad in active_ads.items()
         if ad["owner_id"] == uid and not ad["sotildi"]
     }
-
     if not my_ads:
         await update.message.reply_text("📭 Sizda aktiv e'lonlar yo'q.")
         return
 
     for mid, ad in my_ads.items():
         daqiqa = int((datetime.now() - ad["vaqt"]).total_seconds() // 60)
-        narx = escape_md(ad['narx'])
-        joy = escape_md(ad['joylashuv'])
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{mid}")]
-        ])
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Sotildi!", callback_data=f"sotildi_{uid}_{mid}")
+        ]])
         await update.message.reply_text(
             f"🌸 *E'lon*\n"
-            f"💰 {narx}\n"
-            f"📍 {joy}\n"
+            f"💰 {escape_md(ad['narx'])}\n"
+            f"📍 {escape_md(ad['joylashuv'])}\n"
             f"⏱ {daqiqa} daqiqa oldin",
             parse_mode="MarkdownV2",
             reply_markup=keyboard
@@ -297,7 +377,8 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler("elon", elon_start)],
         states={
-            RASM:      [MessageHandler(filters.PHOTO, rasm_olish)],
+            RASM1:     [MessageHandler(filters.PHOTO, rasm1_olish)],
+            RASM2:     [MessageHandler(filters.PHOTO, rasm2_olish)],
             NARX:      [MessageHandler(filters.TEXT & ~filters.COMMAND, narx_olish)],
             TELEFON:   [MessageHandler(filters.TEXT & ~filters.COMMAND, telefon_olish)],
             JOYLASHUV: [MessageHandler(filters.TEXT & ~filters.COMMAND, joylashuv_olish)],
